@@ -1,0 +1,3429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Repo Diff Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1f2d44;
+    --accent-add: #22d3a5;
+    --accent-rem: #f4545e;
+    --accent-neu: #5b8dee;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-head: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+
+  .hero {
+    background: linear-gradient(135deg, #0b0f1a 0%, #0d1929 60%, #0f1f35 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 40px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(91,141,238,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 { font-family: var(--font-head); font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+  .hero h1 span { color: var(--accent-neu); }
+  .meta { margin-top: 12px; color: var(--text-dim); font-size: 11px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta strong { color: var(--text); }
+
+  .wrapper { max-width: 1280px; margin: 0 auto; padding: 32px 40px; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 36px; }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .kpi.add::after  { background: var(--accent-add); }
+  .kpi.rem::after  { background: var(--accent-rem); }
+  .kpi.neu::after  { background: var(--accent-neu); }
+  .kpi.tot::after  { background: #a855f7; }
+  .kpi.files::after { background: #f59e0b; }
+  .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-head); font-size: 2rem; font-weight: 800; }
+  .kpi.add  .kpi-value { color: var(--accent-add); }
+  .kpi.rem  .kpi-value { color: var(--accent-rem); }
+  .kpi.neu  .kpi-value { color: var(--accent-neu); }
+  .kpi.tot  .kpi-value { color: #a855f7; }
+  .kpi.files .kpi-value { color: #f59e0b; }
+
+  /* Section headers */
+  h2 { font-family: var(--font-head); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  /* Bar chart rows */
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 12px; }
+  .bar-label { width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; display: flex; }
+  .bar-add  { height: 100%; border-radius: 4px 0 0 4px; background: var(--accent-add); transition: width 0.4s; }
+  .bar-rem  { height: 100%; border-radius: 0 4px 4px 0; background: var(--accent-rem); transition: width 0.4s; }
+  .bar-nums { width: 80px; text-align: right; font-size: 11px; }
+  .bar-nums .a { color: var(--accent-add); }
+  .bar-nums .r { color: var(--accent-rem); }
+
+  /* File table */
+  .file-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 36px; }
+  .table-header {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 10px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim);
+  }
+  .file-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-row:hover { background: var(--surface2); }
+  .filepath { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .added   { color: var(--accent-add); text-align: right; }
+  .removed { color: var(--accent-rem); text-align: right; }
+  .delta   { text-align: right; }
+  .delta.pos { color: var(--accent-add); }
+  .delta.neg { color: var(--accent-rem); }
+  .delta.zer { color: var(--text-dim); }
+  .inline-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; width: 100%; }
+  .ib-add { background: var(--accent-add); }
+  .ib-rem { background: var(--accent-rem); }
+
+  .search-row { padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  input[type=text] {
+    width: 100%; max-width: 400px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font-mono); font-size: 12px;
+    padding: 8px 14px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent-neu); }
+
+  .show-more { text-align: center; padding: 14px; cursor: pointer; color: var(--accent-neu); font-size: 12px; }
+  .show-more:hover { color: #fff; }
+
+  .footer { text-align: center; color: var(--text-dim); font-size: 11px; padding: 32px 0; border-top: 1px solid var(--border); margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Repo <span>Diff</span> Report</h1>
+  <div class="meta">
+    <div><strong>Current&nbsp;&nbsp;</strong> https://github.com/ios-mcn-smo/ccsdk-features</div>
+    <div><strong>Upstream</strong> https://github.com/onap/ccsdk-features</div>
+    <div><strong>Branch&nbsp;&nbsp;</strong> 2.0.1-ios-mcn → 2.0.1</div>
+    <div><strong>Generated</strong> 2026-05-27 19:46:12</div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <!-- KPI cards -->
+  <div class="kpis">
+    <div class="kpi add"><div class="kpi-label">Lines Added</div><div class="kpi-value">3,994</div></div>
+    <div class="kpi rem"><div class="kpi-label">Lines Removed</div><div class="kpi-value">247</div></div>
+    <div class="kpi neu"><div class="kpi-label">Net Delta</div><div class="kpi-value">+3747</div></div>
+    <div class="kpi tot"><div class="kpi-label">Total Changes</div><div class="kpi-value">4,241</div></div>
+    <div class="kpi files"><div class="kpi-label">Files Changed</div><div class="kpi-value">305</div></div>
+  </div>
+
+  <!-- Breakdown charts -->
+  <div class="two-col">
+    <div class="panel">
+      <h2>By File Extension</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title=".tsx}">.tsx}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:100.0%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+1295</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".ts}">.ts}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:90.9%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+1177</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".xml">.xml</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:19.1%"></div>
+            <div class="bar-rem" style="width:17.5%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+247</span> <span class="r">-227</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".java">.java</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:29.3%"></div>
+            <div class="bar-rem" style="width:0.5%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+379</span> <span class="r">-6</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".xml}">.xml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:22.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+287</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".js}">.js}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:15.6%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+202</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="(no ext)">(no ext)</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:8.8%"></div>
+            <div class="bar-rem" style="width:0.5%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+114</span> <span class="r">-7</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yang">.yang</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:8.1%"></div>
+            <div class="bar-rem" style="width:0.4%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+105</span> <span class="r">-5</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".json}">.json}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:4.8%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+62</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yml}">.yml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:3.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+41</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".html}">.html}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:2.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+28</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".md}">.md}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:2.0%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+26</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".json">.json</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:1.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+16</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".html">.html</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.3%"></div>
+            <div class="bar-rem" style="width:0.2%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+4</span> <span class="r">-2</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".svg}">.svg}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.4%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+5</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".tsx">.tsx</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+2</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".1-ios-mcn}">.1-ios-mcn}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.2%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+2</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".properties">.properties</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.1%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+1</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".rst">.rst</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.1%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+1</span> <span class="r">-0</span></div>
+        </div>
+    </div>
+    <div class="panel">
+      <h2>By Top-Level Directory</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title="{dev">{dev</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:100.0%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+3230</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="tmp">tmp</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:23.7%"></div>
+            <div class="bar-rem" style="width:7.6%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+764</span> <span class="r">-247</span></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- File table -->
+  <div class="file-table-wrap">
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Filter files…" oninput="filterTable()"/>
+    </div>
+    <div class="table-header">
+      <div>File</div>
+      <div style="text-align:right">+Added</div>
+      <div style="text-align:right">−Removed</div>
+      <div style="text-align:right">Δ Delta</div>
+      <div>Change</div>
+    </div>
+    <div id="file-rows">
+      
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/editNetworkElementDialog.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/editNetworkElementDialog.tsx}</div>
+          <div class="added">+319</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+319</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/networkElements.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/networkElements.tsx}</div>
+          <div class="added">+273</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+273</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/views/configView.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/views/configView.tsx}</div>
+          <div class="added">+206</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+206</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/webpack.config.js}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/webpack.config.js}</div>
+          <div class="added">+202</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+202</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/services/dayZeroService.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/services/dayZeroService.ts}</div>
+          <div class="added">+190</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+190</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/settings.xml}">{dev/null => tmp/repo_diff_lu9drcet/current/settings.xml}</div>
+          <div class="added">+178</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+178</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/infoNetworkElementDialog.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/infoNetworkElementDialog.tsx}</div>
+          <div class="added">+160</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+160</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/commonNetworkElementsActions.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/commonNetworkElementsActions.ts}</div>
+          <div class="added">+141</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+141</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/refreshNetworkElementsDialog.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/refreshNetworkElementsDialog.tsx}</div>
+          <div class="added">+114</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+114</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/refreshUploadConfigDialog.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/components/refreshUploadConfigDialog.tsx}</div>
+          <div class="added">+114</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+114</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/pom.xml}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/pom.xml}</div>
+          <div class="added">+109</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+109</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/pluginConfig.tsx}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/pluginConfig.tsx}</div>
+          <div class="added">+109</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+109</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/yang/data-provider.yang">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/yang/data-provider.yang</div>
+          <div class="added">+102</div>
+          <div class="removed">-2</div>
+          <div class="delta pos">+100</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:98.1%"></div>
+            <div class="ib-rem" style="width:1.9%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/dayZeroConfigAppRootHandler.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/dayZeroConfigAppRootHandler.ts}</div>
+          <div class="added">+100</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+100</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/test/TestCRUDforDatabase.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/test/TestCRUDforDatabase.java</div>
+          <div class="added">+92</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+92</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/infoNetworkElementHandler.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/infoNetworkElementHandler.ts}</div>
+          <div class="added">+92</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+92</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/infoNetworkElementActions.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/infoNetworkElementActions.ts}</div>
+          <div class="added">+82</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+82</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/networkElementsHandler.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/networkElementsHandler.ts}</div>
+          <div class="added">+64</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+64</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/networkElementsActions.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/networkElementsActions.ts}</div>
+          <div class="added">+63</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+63</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/elasticsearch/impl/ElasticSearchDataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/elasticsearch/impl/ElasticSearchDataProvider.java</div>
+          <div class="added">+61</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+61</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/tlsKeyActions.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/actions/tlsKeyActions.ts}</div>
+          <div class="added">+59</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+59</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/topologyNetconf.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/topologyNetconf.ts}</div>
+          <div class="added">+59</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+59</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/tlsKeyHandler.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/tlsKeyHandler.ts}</div>
+          <div class="added">+55</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+55</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/dayZeroConfig.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/dayZeroConfig.ts}</div>
+          <div class="added">+52</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+52</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/SqlDBDataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/SqlDBDataProvider.java</div>
+          <div class="added">+51</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+51</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/impl/DataProviderServiceImpl.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/impl/DataProviderServiceImpl.java</div>
+          <div class="added">+45</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+45</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/utils/timeUtils.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/utils/timeUtils.ts}</div>
+          <div class="added">+45</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+45</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/elasticsearch/data/entity/HtDatabaseEventsService.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/elasticsearch/data/entity/HtDatabaseEventsService.java</div>
+          <div class="added">+44</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+44</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/package.json}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/package.json}</div>
+          <div class="added">+44</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+44</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.github/workflows/maven.yml}">{dev/null => tmp/repo_diff_lu9drcet/current/.github/workflows/maven.yml}</div>
+          <div class="added">+41</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+41</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/applyDayZeroConfigHandler.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/handlers/applyDayZeroConfigHandler.ts}</div>
+          <div class="added">+36</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+36</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/pom.xml</div>
+          <div class="added">+14</div>
+          <div class="removed">-18</div>
+          <div class="delta neg">-4</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:43.8%"></div>
+            <div class="ib-rem" style="width:56.2%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/nodb/NoDbDatabaseDataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/nodb/NoDbDatabaseDataProvider.java</div>
+          <div class="added">+30</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+30</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/installer/pom.xml</div>
+          <div class="added">+19</div>
+          <div class="removed">-11</div>
+          <div class="delta pos">+8</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:63.3%"></div>
+            <div class="ib-rem" style="width:36.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/index.html}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/index.html}</div>
+          <div class="added">+28</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+28</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/applyDayZeroConfig.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/applyDayZeroConfig.ts}</div>
+          <div class="added">+27</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+27</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/helpserver/provider/src/main/resources/help/sdnr/dayZeroConfig/README.md}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/helpserver/provider/src/main/resources/help/sdnr/dayZeroConfig/README.md}</div>
+          <div class="added">+26</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+26</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/app-installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/app-installer/pom.xml</div>
+          <div class="added">+13</div>
+          <div class="removed">-13</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/dayZeroConfigConnectionLog.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/dayZeroConfigConnectionLog.ts}</div>
+          <div class="added">+25</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+25</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/yangCapabilitiesType.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/yangCapabilitiesType.ts}</div>
+          <div class="added">+24</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+24</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/DayZeroConfigBase.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/DayZeroConfigBase.ts}</div>
+          <div class="added">+22</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+22</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/guiCutTrough.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/guiCutTrough.ts}</div>
+          <div class="added">+22</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+22</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/model/DatabaseDataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/model/DatabaseDataProvider.java</div>
+          <div class="added">+18</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+17</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:94.7%"></div>
+            <div class="ib-rem" style="width:5.3%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/panelId.ts}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/models/panelId.ts}</div>
+          <div class="added">+19</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+19</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/.babelrc}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/.babelrc}</div>
+          <div class="added">+17</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+17</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/provider/src/main/resources/help/meta.json">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/provider/src/main/resources/help/meta.json</div>
+          <div class="added">+15</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+15</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/entity/HtDatabaseEventsService.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/entity/HtDatabaseEventsService.java</div>
+          <div class="added">+12</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+12</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/policies.json}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/policies.json}</div>
+          <div class="added">+12</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+12</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common/pom.xml</div>
+          <div class="added">+9</div>
+          <div class="removed">-2</div>
+          <div class="delta pos">+7</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:81.8%"></div>
+            <div class="ib-rem" style="width:18.2%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/installer/pom.xml</div>
+          <div class="added">+5</div>
+          <div class="removed">-5</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/installer/pom.xml</div>
+          <div class="added">+5</div>
+          <div class="removed">-5</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/installer/pom.xml</div>
+          <div class="added">+5</div>
+          <div class="removed">-5</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/entity/DatabaseIdGenerator.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/sqldb/data/entity/DatabaseIdGenerator.java</div>
+          <div class="added">+9</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+9</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/config">tmp/repo_diff_lu9drcet/{upstream => current}/.git/config</div>
+          <div class="added">+5</div>
+          <div class="removed">-2</div>
+          <div class="delta pos">+3</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:71.4%"></div>
+            <div class="ib-rem" style="width:28.6%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/feature/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/provider/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/feature/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/provider/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/ccsdk-features-sdnr-northbound-all/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/ccsdk-features-sdnr-northbound-all/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/feature/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/provider/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/nodb/NoDbDataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/database/nodb/NoDbDataProvider.java</div>
+          <div class="added">+6</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+6</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/tsconfig.json}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/tsconfig.json}</div>
+          <div class="added">+6</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+6</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/pom.xml</div>
+          <div class="added">+5</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+4</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:83.3%"></div>
+            <div class="ib-rem" style="width:16.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/assets/icons/dayZeroConfigAppIcon.svg}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/dayZeroConfigApp/src/assets/icons/dayZeroConfigAppIcon.svg}</div>
+          <div class="added">+5</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+5</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/CMNotify/model/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/model/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/addCMHandle/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/model/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/ranSlice/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+2</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:75.0%"></div>
+            <div class="ib-rem" style="width:25.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/main/yang/org-openroadm-device.yang">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/main/yang/org-openroadm-device.yang</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/pom.xml</div>
+          <div class="added">+3</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+2</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:75.0%"></div>
+            <div class="ib-rem" style="width:25.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/installer/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/apiDemo/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/apiDemo/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/configurationApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/configurationApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/connectApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/connectApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/demoApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/demoApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/eventLogApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/eventLogApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/faultApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/faultApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/helpApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/helpApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/inventoryApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/inventoryApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/maintenanceApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/maintenanceApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/minimumApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/minimumApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/performanceHistoryApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/performanceHistoryApp/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/packed-refs">tmp/repo_diff_lu9drcet/{upstream => current}/.git/packed-refs</div>
+          <div class="added">+1</div>
+          <div class="removed">-2</div>
+          <div class="delta neg">-1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:33.3%"></div>
+            <div class="ib-rem" style="width:66.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/model/DataProvider.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/model/DataProvider.java</div>
+          <div class="added">+3</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+3</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/setup/jakarta/JakartaReleaseInformation.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/setup/jakarta/JakartaReleaseInformation.java</div>
+          <div class="added">+3</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+3</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/connectApp/src/index.html">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/connectApp/src/index.html</div>
+          <div class="added">+2</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:66.7%"></div>
+            <div class="ib-rem" style="width:33.3%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/inventoryApp/src/index.html">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/inventoryApp/src/index.html</div>
+          <div class="added">+2</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:66.7%"></div>
+            <div class="ib-rem" style="width:33.3%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:66.7%"></div>
+            <div class="ib-rem" style="width:33.3%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/HEAD">tmp/repo_diff_lu9drcet/{upstream => current}/.git/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/logs/HEAD">tmp/repo_diff_lu9drcet/{upstream => current}/.git/logs/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/shallow">tmp/repo_diff_lu9drcet/{upstream => current}/.git/shallow</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/ccsdk-aafshiro/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/ccsdk-aafshiro/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/features-aafshiro/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/features-aafshiro/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/features/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/aafshiro/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/features/ccsdk-features-all/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/features/ccsdk-features-all/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/features/features-features/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/features/features-features/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/features/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/features/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/features/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/features/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/lib/doorman/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/lib/doorman/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/lib/network-prioritization/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/lib/network-prioritization/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/lib/rlock/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/lib/rlock/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/features/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/consumer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/consumer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/oofpcipoc/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/northbound/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/iana-crypt-hash/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/iana-crypt-hash/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/ietf-alarms/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/ietf-alarms/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/openroadm-pm-types/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/openroadm-pm-types/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/rfc7317-ietf-system/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/rfc7317-ietf-system/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/rfc8341/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/rfc8341/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/test-yang/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/test-yang/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/utils/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/common-yang/utils/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/dblib/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/setup/data/ComponentName.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/data-provider/setup/src/main/java/org/onap/ccsdk/features/sdnr/wt/dataprovider/setup/data/ComponentName.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-core/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-o-ran-sc/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/adapter-manager/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf12/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/onf14/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm/test/TestChangeNotificationListener.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm/test/TestChangeNotificationListener.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm/test/TestOpenRoadmDeviceChangeNotification.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm/test/TestOpenRoadmDeviceChangeNotification.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/main/yang/org-openroadm-device.yang">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/main/yang/org-openroadm-device.yang</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm71/test/TestChangeNotificationListener.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm71/test/TestChangeNotificationListener.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm71/test/TestOpenRoadmDeviceChangeNotification.java">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/devicemanager-onap/openroadm71/provider/src/test/java/org/onap/ccsdk/features/sdnr/wt/devicemanager/openroadm71/test/TestOpenRoadmDeviceChangeNotification.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-devicemanager/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-devicemanager/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-devicemanager-base/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-devicemanager-base/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-oauth/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/feature-oauth/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/featureaggregator/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-registrar/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/mountpoint-state-provider/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/netconfnode-state-service/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-core/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-core/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-realm/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-realm/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-web/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/oauth-web/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/oauth-provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/feature/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/feature/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/installer/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/installer/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/model/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt/websocketmanager/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/provider/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/helpserver/provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/mediatorApp/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/apps/mediatorApp/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/src/views/about.tsx">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/src/views/about.tsx</div>
+          <div class="added">+2</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+2</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/pom.xml">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/logs/refs/heads/2.0.1-ios-mcn}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/logs/refs/heads/2.0.1-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/logs/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/logs/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/refs/heads/2.0.1-ios-mcn}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/refs/heads/2.0.1-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/aafshiro/features/ccsdk-aafshiro/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/aafshiro/features/ccsdk-aafshiro/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/aafshiro/features/features-aafshiro/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/aafshiro/features/features-aafshiro/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/features/ccsdk-features-all/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/features/ccsdk-features-all/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/features/features-features/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/features/features-features/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/lib/doorman/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/lib/doorman/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/lib/network-prioritization/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/lib/network-prioritization/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/lib/rlock/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/lib/rlock/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/CMNotify/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/addCMHandle/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/features/ccsdk-features-sdnr-northbound-all/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/features/ccsdk-features-sdnr-northbound-all/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/consumer/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/consumer/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/oofpcipoc/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/northbound/ranSlice/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/iana-crypt-hash/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/iana-crypt-hash/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/ietf-alarms/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/ietf-alarms/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/openroadm-pm-types/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/openroadm-pm-types/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/rfc7317-ietf-system/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/rfc7317-ietf-system/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/rfc8341/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/rfc8341/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/test-yang/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/test-yang/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/utils/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/common-yang/utils/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/dblib/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/dblib/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/setup/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/data-provider/setup/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-core/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-o-ran-sc/o-ran/ru-fh/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/adapter-manager/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf12/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/onf14/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/devicemanager-onap/openroadm71/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-devicemanager/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-devicemanager/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-devicemanager-base/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-devicemanager-base/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-oauth/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/featureaggregator/feature-oauth/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-registrar/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-state-provider/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-state-provider/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-state-provider/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/mountpoint-state-provider/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/netconfnode-state-service/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-core/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-core/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-realm/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-realm/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-web/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/oauth-provider/oauth-web/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/feature/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/feature/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/model/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/model/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt/websocketmanager/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/helpserver/provider/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/helpserver/provider/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/apiDemo/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/apiDemo/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/configurationApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/configurationApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/connectApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/connectApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/demoApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/demoApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/eventLogApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/eventLogApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/faultApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/faultApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/helpApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/helpApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/inventoryApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/inventoryApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/maintenanceApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/maintenanceApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/minimumApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/minimumApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/performanceHistoryApp/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/apps/performanceHistoryApp/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/framework/.gitignore}">{dev/null => tmp/repo_diff_lu9drcet/current/sdnr/wt-odlux/odlux/framework/.gitignore}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/src2/main/resources/version.json">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/framework/src2/main/resources/version.json</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/odlux.properties">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/odlux/odlux.properties</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/readthedocs/src/docs/guides/onap-user/applications.rst">tmp/repo_diff_lu9drcet/{upstream => current}/sdnr/wt-odlux/readthedocs/src/docs/guides/onap-user/applications.rst</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream => current}/.git/index">tmp/repo_diff_lu9drcet/{upstream => current}/.git/index</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_lu9drcet/upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.idx => dev/null}">{tmp/repo_diff_lu9drcet/upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.idx => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_lu9drcet/upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.rev => dev/null}">{tmp/repo_diff_lu9drcet/upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.rev => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.idx}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.idx}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_lu9drcet/{upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.pack => current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.pack}">tmp/repo_diff_lu9drcet/{upstream/.git/objects/pack/pack-76120308dbb5ef8266ed1e037568b4241dfe27ea.pack => current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.pack}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_lu9drcet/current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.rev}">{dev/null => tmp/repo_diff_lu9drcet/current/.git/objects/pack/pack-db15773832ac07eeea734eaa26d510b66da21500.rev}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">Generated by repo_diff_report.py &nbsp;·&nbsp; 2026-05-27 19:46:12</div>
+
+<script>
+function filterTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.querySelectorAll('.file-row').forEach(r => {
+    r.style.display = r.querySelector('.filepath').textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

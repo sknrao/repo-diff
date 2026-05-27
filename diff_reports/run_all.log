@@ -1,0 +1,102 @@
+
+=== [1/5] netconf ===
+
+📦 Cloning repositories…
+  Cloning https://github.com/ios-mcn-smo/netconf  [branch/tag: v6.0.6-ios-mcn]  →  /tmp/repo_diff_ugvmf1s8/current
+  Cloning https://github.com/opendaylight/netconf  [branch/tag: v6.0.6]  →  /tmp/repo_diff_ugvmf1s8/upstream
+
+🔍 Analysing differences…
+
+  Running diff …
+
+📊 Summary:
+   Files changed : 232
+   Lines added   : 534
+   Lines removed : 263
+   Net delta     : +271
+
+📝 Generating HTML report → ./diff_reports/netconf_diff.html
+📄 JSON summary → ./diff_reports/.summaries/netconf.json
+✅ Done!  Open ./diff_reports/netconf_diff.html in your browser.
+
+=== [2/5] sdnc-oam ===
+
+📦 Cloning repositories…
+  Cloning https://github.com/ios-mcn-smo/sdnc-oam  [branch/tag: oslo-ios-mcn]  →  /tmp/repo_diff_21vexscm/current
+  Cloning https://github.com/onap/sdnc-oam  [branch/tag: oslo]  →  /tmp/repo_diff_21vexscm/upstream
+
+🔍 Analysing differences…
+
+  Running diff …
+
+📊 Summary:
+   Files changed : 37
+   Lines added   : 295
+   Lines removed : 17
+   Net delta     : +278
+
+📝 Generating HTML report → ./diff_reports/sdnc-oam_diff.html
+📄 JSON summary → ./diff_reports/.summaries/sdnc-oam.json
+✅ Done!  Open ./diff_reports/sdnc-oam_diff.html in your browser.
+
+=== [3/5] oam ===
+
+📦 Cloning repositories…
+  Cloning https://github.com/ios-mcn-smo/oam  [branch/tag: iosmcnmaster]  →  /tmp/repo_diff_4utga539/current
+  Cloning https://github.com/o-ran-sc/oam  [branch/tag: l-release]  →  /tmp/repo_diff_4utga539/upstream
+
+🔍 Analysing differences…
+
+  Running diff …
+
+📊 Summary:
+   Files changed : 549
+   Lines added   : 8,834
+   Lines removed : 1,248,044
+   Net delta     : -1,239,210
+
+📝 Generating HTML report → ./diff_reports/oam_diff.html
+📄 JSON summary → ./diff_reports/.summaries/oam.json
+✅ Done!  Open ./diff_reports/oam_diff.html in your browser.
+
+=== [4/5] oam-k8s ===
+
+📦 Cloning repositories…
+  Cloning https://github.com/ios-mcn-smo/oam-k8s  [branch/tag: m-release]  →  /tmp/repo_diff_otv3hjsj/current
+  [WARN] --branch 'm-release' failed, retrying with default branch…
+  Cloning https://github.com/o-ran-sc/it-dep  [branch/tag: main]  →  /tmp/repo_diff_otv3hjsj/upstream
+  [WARN] --branch 'main' failed, retrying with default branch…
+
+🔍 Analysing differences…
+
+  Running diff …
+
+📊 Summary:
+   Files changed : 547
+   Lines added   : 768
+   Lines removed : 28,909
+   Net delta     : -28,141
+
+📝 Generating HTML report → ./diff_reports/oam-k8s_diff.html
+📄 JSON summary → ./diff_reports/.summaries/oam-k8s.json
+✅ Done!  Open ./diff_reports/oam-k8s_diff.html in your browser.
+
+=== [5/5] ccsdk-features ===
+
+📦 Cloning repositories…
+  Cloning https://github.com/ios-mcn-smo/ccsdk-features  [branch/tag: 2.0.1-ios-mcn]  →  /tmp/repo_diff_lu9drcet/current
+  Cloning https://github.com/onap/ccsdk-features  [branch/tag: 2.0.1]  →  /tmp/repo_diff_lu9drcet/upstream
+
+🔍 Analysing differences…
+
+  Running diff …
+
+📊 Summary:
+   Files changed : 305
+   Lines added   : 3,994
+   Lines removed : 247
+   Net delta     : +3,747
+
+📝 Generating HTML report → ./diff_reports/ccsdk-features_diff.html
+📄 JSON summary → ./diff_reports/.summaries/ccsdk-features.json
+✅ Done!  Open ./diff_reports/ccsdk-features_diff.html in your browser.

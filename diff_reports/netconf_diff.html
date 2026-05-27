@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Repo Diff Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1f2d44;
+    --accent-add: #22d3a5;
+    --accent-rem: #f4545e;
+    --accent-neu: #5b8dee;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-head: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+
+  .hero {
+    background: linear-gradient(135deg, #0b0f1a 0%, #0d1929 60%, #0f1f35 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 40px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(91,141,238,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 { font-family: var(--font-head); font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+  .hero h1 span { color: var(--accent-neu); }
+  .meta { margin-top: 12px; color: var(--text-dim); font-size: 11px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta strong { color: var(--text); }
+
+  .wrapper { max-width: 1280px; margin: 0 auto; padding: 32px 40px; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 36px; }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .kpi.add::after  { background: var(--accent-add); }
+  .kpi.rem::after  { background: var(--accent-rem); }
+  .kpi.neu::after  { background: var(--accent-neu); }
+  .kpi.tot::after  { background: #a855f7; }
+  .kpi.files::after { background: #f59e0b; }
+  .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-head); font-size: 2rem; font-weight: 800; }
+  .kpi.add  .kpi-value { color: var(--accent-add); }
+  .kpi.rem  .kpi-value { color: var(--accent-rem); }
+  .kpi.neu  .kpi-value { color: var(--accent-neu); }
+  .kpi.tot  .kpi-value { color: #a855f7; }
+  .kpi.files .kpi-value { color: #f59e0b; }
+
+  /* Section headers */
+  h2 { font-family: var(--font-head); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  /* Bar chart rows */
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 12px; }
+  .bar-label { width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; display: flex; }
+  .bar-add  { height: 100%; border-radius: 4px 0 0 4px; background: var(--accent-add); transition: width 0.4s; }
+  .bar-rem  { height: 100%; border-radius: 0 4px 4px 0; background: var(--accent-rem); transition: width 0.4s; }
+  .bar-nums { width: 80px; text-align: right; font-size: 11px; }
+  .bar-nums .a { color: var(--accent-add); }
+  .bar-nums .r { color: var(--accent-rem); }
+
+  /* File table */
+  .file-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 36px; }
+  .table-header {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 10px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim);
+  }
+  .file-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-row:hover { background: var(--surface2); }
+  .filepath { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .added   { color: var(--accent-add); text-align: right; }
+  .removed { color: var(--accent-rem); text-align: right; }
+  .delta   { text-align: right; }
+  .delta.pos { color: var(--accent-add); }
+  .delta.neg { color: var(--accent-rem); }
+  .delta.zer { color: var(--text-dim); }
+  .inline-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; width: 100%; }
+  .ib-add { background: var(--accent-add); }
+  .ib-rem { background: var(--accent-rem); }
+
+  .search-row { padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  input[type=text] {
+    width: 100%; max-width: 400px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font-mono); font-size: 12px;
+    padding: 8px 14px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent-neu); }
+
+  .show-more { text-align: center; padding: 14px; cursor: pointer; color: var(--accent-neu); font-size: 12px; }
+  .show-more:hover { color: #fff; }
+
+  .footer { text-align: center; color: var(--text-dim); font-size: 11px; padding: 32px 0; border-top: 1px solid var(--border); margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Repo <span>Diff</span> Report</h1>
+  <div class="meta">
+    <div><strong>Current&nbsp;&nbsp;</strong> https://github.com/ios-mcn-smo/netconf</div>
+    <div><strong>Upstream</strong> https://github.com/opendaylight/netconf</div>
+    <div><strong>Branch&nbsp;&nbsp;</strong> v6.0.6-ios-mcn → v6.0.6</div>
+    <div><strong>Generated</strong> 2026-05-27 19:45:50</div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <!-- KPI cards -->
+  <div class="kpis">
+    <div class="kpi add"><div class="kpi-label">Lines Added</div><div class="kpi-value">534</div></div>
+    <div class="kpi rem"><div class="kpi-label">Lines Removed</div><div class="kpi-value">263</div></div>
+    <div class="kpi neu"><div class="kpi-label">Net Delta</div><div class="kpi-value">+271</div></div>
+    <div class="kpi tot"><div class="kpi-label">Total Changes</div><div class="kpi-value">797</div></div>
+    <div class="kpi files"><div class="kpi-label">Files Changed</div><div class="kpi-value">232</div></div>
+  </div>
+
+  <!-- Breakdown charts -->
+  <div class="two-col">
+    <div class="panel">
+      <h2>By File Extension</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title=".xml">.xml</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:54.7%"></div>
+            <div class="bar-rem" style="width:45.3%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+141</span> <span class="r">-117</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".xml}">.xml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:83.3%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+215</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".java">.java</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:41.5%"></div>
+            <div class="bar-rem" style="width:41.5%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+107</span> <span class="r">-107</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yml}">.yml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:16.3%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+42</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yang">.yang</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:1.6%"></div>
+            <div class="bar-rem" style="width:12.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+4</span> <span class="r">-31</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="(no ext)">(no ext)</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:4.3%"></div>
+            <div class="bar-rem" style="width:2.7%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+11</span> <span class="r">-7</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yang}">.yang}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:4.7%"></div>
+            <div class="bar-rem" style="width:0.4%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+12</span> <span class="r">-1</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".6-ios-mcn}">.6-ios-mcn}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.8%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+2</span> <span class="r">-0</span></div>
+        </div>
+    </div>
+    <div class="panel">
+      <h2>By Top-Level Directory</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title="tmp">tmp</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:50.9%"></div>
+            <div class="bar-rem" style="width:49.1%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+273</span> <span class="r">-263</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="{dev">{dev</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:48.7%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+261</span> <span class="r">-0</span></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- File table -->
+  <div class="file-table-wrap">
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Filter files…" oninput="filterTable()"/>
+    </div>
+    <div class="table-header">
+      <div>File</div>
+      <div style="text-align:right">+Added</div>
+      <div style="text-align:right">−Removed</div>
+      <div style="text-align:right">Δ Delta</div>
+      <div>Change</div>
+    </div>
+    <div id="file-rows">
+      
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/settings.xml}">{dev/null => tmp/repo_diff_ugvmf1s8/current/settings.xml}</div>
+          <div class="added">+215</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+215</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.github/workflows/maven.yml}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.github/workflows/maven.yml}</div>
+          <div class="added">+42</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+42</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6470/src/main/yang/ietf-netconf-notifications@2012-02-06.yang">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6470/src/main/yang/ietf-netconf-notifications@2012-02-06.yang</div>
+          <div class="added">+4</div>
+          <div class="removed">-31</div>
+          <div class="delta neg">-27</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:11.4%"></div>
+            <div class="ib-rem" style="width:88.6%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/artifacts/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/artifacts/pom.xml</div>
+          <div class="added">+21</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+20</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:95.5%"></div>
+            <div class="ib-rem" style="width:4.5%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream/model/rfc6241/src/main/yang/ietf-netconf@2011-06-01.yang => current/model/rfc6241/src/main/yang/ietf-netconf@2013-09-29.yang}">tmp/repo_diff_ugvmf1s8/{upstream/model/rfc6241/src/main/yang/ietf-netconf@2011-06-01.yang => current/model/rfc6241/src/main/yang/ietf-netconf@2013-09-29.yang}</div>
+          <div class="added">+12</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+11</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:92.3%"></div>
+            <div class="ib-rem" style="width:7.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/config">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/config</div>
+          <div class="added">+5</div>
+          <div class="removed">-2</div>
+          <div class="delta pos">+3</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:71.4%"></div>
+            <div class="ib-rem" style="width:28.6%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6241/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6241/pom.xml</div>
+          <div class="added">+5</div>
+          <div class="removed">-1</div>
+          <div class="delta pos">+4</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:83.3%"></div>
+            <div class="ib-rem" style="width:16.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/impl/BaseRpcSchemalessTransformerTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/impl/BaseRpcSchemalessTransformerTest.java</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDeviceRpcTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDeviceRpcTest.java</div>
+          <div class="added">+3</div>
+          <div class="removed">-3</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/parent/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/parent/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/karaf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/karaf/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/client/stress/StressClient.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/client/stress/StressClient.java</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/parent/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/parent/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/DefaultBaseNetconfSchemas.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/DefaultBaseNetconfSchemas.java</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/NetconfBaseOps.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/NetconfBaseOps.java</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-exificient/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-exificient/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/packed-refs">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/packed-refs</div>
+          <div class="added">+1</div>
+          <div class="removed">-2</div>
+          <div class="delta neg">-1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:33.3%"></div>
+            <div class="ib-rem" style="width:66.7%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/HEAD">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/logs/HEAD">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/logs/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/shallow">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/shallow</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/callhome-provider/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/callhome-provider/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-console/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-console/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-nb/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-nb/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-nb/src/main/java/org/opendaylight/netconf/northbound/monitoring/MdsalMonitoringMapperFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-nb/src/main/java/org/opendaylight/netconf/northbound/monitoring/MdsalMonitoringMapperFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/main/java/org/opendaylight/netconf/topology/spi/NetconfDeviceTopologyAdapter.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/main/java/org/opendaylight/netconf/topology/spi/NetconfDeviceTopologyAdapter.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/test/java/org/opendaylight/netconf/topology/spi/NetconfDeficeTopologyAdapterIntegrationTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/test/java/org/opendaylight/netconf/topology/spi/NetconfDeficeTopologyAdapterIntegrationTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/test/java/org/opendaylight/netconf/topology/spi/NetconfDeviceTopologyAdapterTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology/src/test/java/org/opendaylight/netconf/topology/spi/NetconfDeviceTopologyAdapterTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology-impl/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology-impl/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology-singleton/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/netconf-topology-singleton/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/apps/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf-experimental/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf-experimental/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf-testing/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/features-netconf-testing/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-aaa-netconf-plugin/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-aaa-netconf-plugin/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-all/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-all/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-callhome-ssh/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-callhome-ssh/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-client/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-client/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-clustered-topology/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-clustered-topology/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-connector/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-connector/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-connector-all/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-connector-all/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-console/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-console/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-impl/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-impl/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-keystore/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-keystore/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-mdsal/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-mdsal/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc5277/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc5277/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6022/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6022/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6241/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6241/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6243/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6243/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6470/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc6470/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8040/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8040/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8341/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8341/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8526/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8526/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8639/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-model-rfc8639/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-netty-util/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-netty-util/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-ssh/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-ssh/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-test-tools/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-test-tools/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-topology/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-topology/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-transport/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-transport/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-transport-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-transport-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-truststore/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-truststore/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-util/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-netconf-util/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-all/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-all/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-common/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-common/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-nb/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-nb/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-openapi/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-restconf-openapi/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-yanglib/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/odl-yanglib/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/features/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/features/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/karaf-static/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/karaf-static/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/keystore-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/keystore-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/keystore-none/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/keystore-none/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/keystore/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/draft-ietf-netconf-crypto-types/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/draft-ietf-netconf-crypto-types/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc5277/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc5277/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6022/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6022/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6243/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6243/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6470/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc6470/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc7407-ietf-x509-cert-to-name/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc7407-ietf-x509-cert-to-name/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8040-ietf-restconf-monitoring/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8040-ietf-restconf-monitoring/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8341/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8341/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8526/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8526/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8639/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/model/rfc8639/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/callhome-model/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/callhome-model/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/callhome-protocol/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/callhome-protocol/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/mdsal-netconf-yang-library/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/mdsal-netconf-yang-library/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-auth/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-auth/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-config/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-config/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/main/java/org/opendaylight/netconf/nettyutil/AbstractNetconfSession.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/main/java/org/opendaylight/netconf/nettyutil/AbstractNetconfSession.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/AbstractNetconfSessionTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/AbstractNetconfSessionTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/TestSessionNegotiator.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/TestSessionNegotiator.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/TestingNetconfSession.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-netty-util/src/test/java/org/opendaylight/netconf/nettyutil/TestingNetconfSession.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-test-models/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/netconf-test-models/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-test-perf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-test-perf/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/MdsalOperationProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/MdsalOperationProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/SimulatedOperationProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/SimulatedOperationProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/TesttoolNegotiationFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/TesttoolNegotiationFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/customrpc/SettableOperationProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/customrpc/SettableOperationProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/Get.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/Get.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/NetconfMonitoringOperationService.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/NetconfMonitoringOperationService.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/NetconfMonitoringOperationServiceFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/monitoring/NetconfMonitoringOperationServiceFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/DefaultOperationsCreator.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/DefaultOperationsCreator.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/OperationsCreator.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/OperationsCreator.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/OperationsProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/operations/OperationsProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedCommit.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedCommit.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedCreateSubscription.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedCreateSubscription.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedDiscardChanges.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedDiscardChanges.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedEditConfig.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedEditConfig.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedGet.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedGet.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedGetConfig.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedGetConfig.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedLock.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedLock.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedUnLock.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpc/SimulatedUnLock.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpchandler/SettableOperationRpcProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/netconf-testtool/src/main/java/org/opendaylight/netconf/test/tool/rpchandler/SettableOperationRpcProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/tools/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/yanglib/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/netconf/yanglib/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-auth-aaa/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-auth-aaa/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/api/NetconfSessionPreferences.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/api/NetconfSessionPreferences.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/NetconfMessageTransformUtil.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/main/java/org/opendaylight/netconf/client/mdsal/impl/NetconfMessageTransformUtil.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/NetconfDeviceCommunicatorTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/NetconfDeviceCommunicatorTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/impl/NetconfMessageTransformerTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/impl/NetconfMessageTransformerTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/MountInstanceTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/MountInstanceTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDataTreeServiceImplTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDataTreeServiceImplTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDeviceDataBrokerTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/NetconfDeviceDataBrokerTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/SchemalessNetconfDeviceRpcTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/SchemalessNetconfDeviceRpcTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/WriteCandidateRunningTxTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-client-mdsal/src/test/java/org/opendaylight/netconf/client/mdsal/spi/WriteCandidateRunningTxTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-common-mdsal/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-common-mdsal/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-common-mdsal/src/main/java/org/opendaylight/netconf/common/mdsal/NormalizedDataUtil.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-common-mdsal/src/main/java/org/opendaylight/netconf/common/mdsal/NormalizedDataUtil.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-dom-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-dom-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/MdsalNetconfOperationService.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/MdsalNetconfOperationService.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/MdsalNetconfOperationServiceFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/MdsalNetconfOperationServiceFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/TransactionProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/TransactionProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/monitoring/GetSchema.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/monitoring/GetSchema.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/CreateSubscription.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/CreateSubscription.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/NetconfNotificationOperationService.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/NetconfNotificationOperationService.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/NetconfNotificationOperationServiceFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/NetconfNotificationOperationServiceFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/SessionNotificationProducer.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/notifications/SessionNotificationProducer.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractConfigOperation.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractConfigOperation.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractEdit.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractEdit.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractGet.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/AbstractGet.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Commit.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Commit.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/CopyConfig.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/CopyConfig.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/DiscardChanges.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/DiscardChanges.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/EditConfig.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/EditConfig.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Get.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Get.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/GetConfig.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/GetConfig.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Lock.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Lock.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/RuntimeRpc.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/RuntimeRpc.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/SplittingNormalizedNodeMetadataStreamWriter.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/SplittingNormalizedNodeMetadataStreamWriter.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Unlock.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Unlock.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Validate.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/main/java/org/opendaylight/netconf/server/mdsal/operations/Validate.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/notifications/CreateSubscriptionTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/notifications/CreateSubscriptionTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/AbstractNetconfOperationTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/AbstractNetconfOperationTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/Netconf538Test.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/Netconf538Test.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/NetconfMDSalMappingTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/NetconfMDSalMappingTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/RuntimeRpcTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/netconf-server-mdsal/src/test/java/org/opendaylight/netconf/server/mdsal/operations/RuntimeRpcTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/plugins/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/src/main/java/org/opendaylight/netconf/api/messages/HelloMessage.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/src/main/java/org/opendaylight/netconf/api/messages/HelloMessage.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/src/test/java/org/opendaylight/netconf/api/messages/HelloMessageTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-api/src/test/java/org/opendaylight/netconf/api/messages/HelloMessageTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/main/java/org/opendaylight/netconf/client/NetconfClientSession.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/main/java/org/opendaylight/netconf/client/NetconfClientSession.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/main/java/org/opendaylight/netconf/client/NetconfClientSessionNegotiator.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/main/java/org/opendaylight/netconf/client/NetconfClientSessionNegotiator.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/NetconfClientSessionNegotiatorTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/NetconfClientSessionNegotiatorTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/NetconfClientSessionTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/NetconfClientSessionTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/SimpleNetconfClientSessionListenerTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/SimpleNetconfClientSessionListenerTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/TestingNetconfClient.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-client/src/test/java/org/opendaylight/netconf/client/TestingNetconfClient.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSession.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSession.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSessionNegotiator.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSessionNegotiator.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSessionNegotiatorFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/NetconfServerSessionNegotiatorFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/SessionIdProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/SessionIdProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractLastNetconfOperation.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractLastNetconfOperation.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractNetconfOperation.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractNetconfOperation.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractSingletonNetconfOperation.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/AbstractSingletonNetconfOperation.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/NetconfOperationServiceFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/api/operations/NetconfOperationServiceFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/impl/DefaultSessionIdProvider.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/impl/DefaultSessionIdProvider.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultCloseSession.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultCloseSession.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultStartExi.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultStartExi.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultStopExi.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/mapping/operations/DefaultStopExi.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/osgi/AggregatedNetconfOperationServiceFactory.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/osgi/AggregatedNetconfOperationServiceFactory.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/osgi/NetconfOperationRouterImpl.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/main/java/org/opendaylight/netconf/server/osgi/NetconfOperationRouterImpl.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/ConcurrentClientsTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/ConcurrentClientsTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/NetconfServerSessionListenerTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/NetconfServerSessionListenerTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/NetconfServerSessionTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/NetconfServerSessionTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractLastNetconfOperationTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractLastNetconfOperationTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractNetconfOperationTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractNetconfOperationTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractSingletonNetconfOperationTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/api/operations/AbstractSingletonNetconfOperationTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/mapping/operations/DefaultCloseSessionTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/mapping/operations/DefaultCloseSessionTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/mapping/operations/DefaultStopExiTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/mapping/operations/DefaultStopExiTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/osgi/NetconfOperationRouterImplTest.java">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-server/src/test/java/org/opendaylight/netconf/server/osgi/NetconfOperationRouterImplTest.java</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-test-util/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/netconf-test-util/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/restconf-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/protocol/restconf-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-common/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-common/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-common-models/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-common-models/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-nb/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-nb/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-openapi/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/restconf-openapi/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/sal-rest-connector-config/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/sal-rest-connector-config/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/sal-restconf-broker/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/sal-restconf-broker/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/wadl-generator/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/wadl-generator/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/websocket-client/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/restconf/websocket-client/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-exificient-jar/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-exificient-jar/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-sshd/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-sshd/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-sshd-jar/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/third-party/shaded-sshd-jar/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-ssh/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-ssh/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-tcp/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-tcp/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-tls/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/transport/transport-tls/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/truststore-api/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/truststore-api/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/truststore-none/pom.xml">tmp/repo_diff_ugvmf1s8/{upstream => current}/truststore/truststore-none/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/logs/refs/heads/v6.0.6-ios-mcn}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/logs/refs/heads/v6.0.6-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/logs/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/logs/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/refs/heads/v6.0.6-ios-mcn}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/refs/heads/v6.0.6-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/index">tmp/repo_diff_ugvmf1s8/{upstream => current}/.git/index</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_ugvmf1s8/upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.idx => dev/null}">{tmp/repo_diff_ugvmf1s8/upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.idx => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_ugvmf1s8/upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.rev => dev/null}">{tmp/repo_diff_ugvmf1s8/upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.rev => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.idx}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.idx}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_ugvmf1s8/{upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.pack => current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.pack}">tmp/repo_diff_ugvmf1s8/{upstream/.git/objects/pack/pack-6cb41d28c20fc619b8f14b139334fa2bead781a5.pack => current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.pack}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.rev}">{dev/null => tmp/repo_diff_ugvmf1s8/current/.git/objects/pack/pack-a78a33ee1081ce9a64b878a3263375d1857a4874.rev}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">Generated by repo_diff_report.py &nbsp;·&nbsp; 2026-05-27 19:45:50</div>
+
+<script>
+function filterTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.querySelectorAll('.file-row').forEach(r => {
+    r.style.display = r.querySelector('.filepath').textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

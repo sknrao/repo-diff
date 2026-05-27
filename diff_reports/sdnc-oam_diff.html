@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Repo Diff Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1f2d44;
+    --accent-add: #22d3a5;
+    --accent-rem: #f4545e;
+    --accent-neu: #5b8dee;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-head: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+
+  .hero {
+    background: linear-gradient(135deg, #0b0f1a 0%, #0d1929 60%, #0f1f35 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 40px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(91,141,238,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 { font-family: var(--font-head); font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+  .hero h1 span { color: var(--accent-neu); }
+  .meta { margin-top: 12px; color: var(--text-dim); font-size: 11px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta strong { color: var(--text); }
+
+  .wrapper { max-width: 1280px; margin: 0 auto; padding: 32px 40px; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 36px; }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .kpi.add::after  { background: var(--accent-add); }
+  .kpi.rem::after  { background: var(--accent-rem); }
+  .kpi.neu::after  { background: var(--accent-neu); }
+  .kpi.tot::after  { background: #a855f7; }
+  .kpi.files::after { background: #f59e0b; }
+  .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-head); font-size: 2rem; font-weight: 800; }
+  .kpi.add  .kpi-value { color: var(--accent-add); }
+  .kpi.rem  .kpi-value { color: var(--accent-rem); }
+  .kpi.neu  .kpi-value { color: var(--accent-neu); }
+  .kpi.tot  .kpi-value { color: #a855f7; }
+  .kpi.files .kpi-value { color: #f59e0b; }
+
+  /* Section headers */
+  h2 { font-family: var(--font-head); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  /* Bar chart rows */
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 12px; }
+  .bar-label { width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; display: flex; }
+  .bar-add  { height: 100%; border-radius: 4px 0 0 4px; background: var(--accent-add); transition: width 0.4s; }
+  .bar-rem  { height: 100%; border-radius: 0 4px 4px 0; background: var(--accent-rem); transition: width 0.4s; }
+  .bar-nums { width: 80px; text-align: right; font-size: 11px; }
+  .bar-nums .a { color: var(--accent-add); }
+  .bar-nums .r { color: var(--accent-rem); }
+
+  /* File table */
+  .file-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 36px; }
+  .table-header {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 10px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim);
+  }
+  .file-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 80px 100px 160px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-row:hover { background: var(--surface2); }
+  .filepath { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .added   { color: var(--accent-add); text-align: right; }
+  .removed { color: var(--accent-rem); text-align: right; }
+  .delta   { text-align: right; }
+  .delta.pos { color: var(--accent-add); }
+  .delta.neg { color: var(--accent-rem); }
+  .delta.zer { color: var(--text-dim); }
+  .inline-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; width: 100%; }
+  .ib-add { background: var(--accent-add); }
+  .ib-rem { background: var(--accent-rem); }
+
+  .search-row { padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  input[type=text] {
+    width: 100%; max-width: 400px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font-mono); font-size: 12px;
+    padding: 8px 14px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent-neu); }
+
+  .show-more { text-align: center; padding: 14px; cursor: pointer; color: var(--accent-neu); font-size: 12px; }
+  .show-more:hover { color: #fff; }
+
+  .footer { text-align: center; color: var(--text-dim); font-size: 11px; padding: 32px 0; border-top: 1px solid var(--border); margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Repo <span>Diff</span> Report</h1>
+  <div class="meta">
+    <div><strong>Current&nbsp;&nbsp;</strong> https://github.com/ios-mcn-smo/sdnc-oam</div>
+    <div><strong>Upstream</strong> https://github.com/onap/sdnc-oam</div>
+    <div><strong>Branch&nbsp;&nbsp;</strong> oslo-ios-mcn → oslo</div>
+    <div><strong>Generated</strong> 2026-05-27 19:45:55</div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <!-- KPI cards -->
+  <div class="kpis">
+    <div class="kpi add"><div class="kpi-label">Lines Added</div><div class="kpi-value">295</div></div>
+    <div class="kpi rem"><div class="kpi-label">Lines Removed</div><div class="kpi-value">17</div></div>
+    <div class="kpi neu"><div class="kpi-label">Net Delta</div><div class="kpi-value">+278</div></div>
+    <div class="kpi tot"><div class="kpi-label">Total Changes</div><div class="kpi-value">312</div></div>
+    <div class="kpi files"><div class="kpi-label">Files Changed</div><div class="kpi-value">37</div></div>
+  </div>
+
+  <!-- Breakdown charts -->
+  <div class="two-col">
+    <div class="panel">
+      <h2>By File Extension</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title=".xml}">.xml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:100.0%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+178</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".yml}">.yml}</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:36.5%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+65</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="(no ext)">(no ext)</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:14.6%"></div>
+            <div class="bar-rem" style="width:5.6%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+26</span> <span class="r">-10</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title=".xml">.xml</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:14.6%"></div>
+            <div class="bar-rem" style="width:3.9%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+26</span> <span class="r">-7</span></div>
+        </div>
+    </div>
+    <div class="panel">
+      <h2>By Top-Level Directory</h2>
+      
+        <div class="bar-row">
+          <div class="bar-label" title="{dev">{dev</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:100.0%"></div>
+            <div class="bar-rem" style="width:0.0%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+247</span> <span class="r">-0</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="tmp">tmp</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:19.4%"></div>
+            <div class="bar-rem" style="width:6.1%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+48</span> <span class="r">-15</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label" title="{tmp">{tmp</div>
+          <div class="bar-track">
+            <div class="bar-add" style="width:0.0%"></div>
+            <div class="bar-rem" style="width:0.8%"></div>
+          </div>
+          <div class="bar-nums"><span class="a">+0</span> <span class="r">-2</span></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- File table -->
+  <div class="file-table-wrap">
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Filter files…" oninput="filterTable()"/>
+    </div>
+    <div class="table-header">
+      <div>File</div>
+      <div style="text-align:right">+Added</div>
+      <div style="text-align:right">−Removed</div>
+      <div style="text-align:right">Δ Delta</div>
+      <div>Change</div>
+    </div>
+    <div id="file-rows">
+      
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/settings.xml}">{dev/null => tmp/repo_diff_21vexscm/current/settings.xml}</div>
+          <div class="added">+178</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+178</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.github/workflows/maven.yml}">{dev/null => tmp/repo_diff_21vexscm/current/.github/workflows/maven.yml}</div>
+          <div class="added">+65</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+65</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc/pom.xml">tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc/pom.xml</div>
+          <div class="added">+22</div>
+          <div class="removed">-3</div>
+          <div class="delta pos">+19</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:88.0%"></div>
+            <div class="ib-rem" style="width:12.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc/src/main/docker/Dockerfile">tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc/src/main/docker/Dockerfile</div>
+          <div class="added">+14</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+14</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/config">tmp/repo_diff_21vexscm/{upstream => current}/.git/config</div>
+          <div class="added">+4</div>
+          <div class="removed">-4</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc-web/pom.xml">tmp/repo_diff_21vexscm/{upstream => current}/installation/sdnc-web/pom.xml</div>
+          <div class="added">+2</div>
+          <div class="removed">-2</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/HEAD">tmp/repo_diff_21vexscm/{upstream => current}/.git/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/logs/HEAD">tmp/repo_diff_21vexscm/{upstream => current}/.git/logs/HEAD</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/packed-refs">tmp/repo_diff_21vexscm/{upstream => current}/.git/packed-refs</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/shallow">tmp/repo_diff_21vexscm/{upstream => current}/.git/shallow</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/installation/pom.xml">tmp/repo_diff_21vexscm/{upstream => current}/installation/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/pom.xml">tmp/repo_diff_21vexscm/{upstream => current}/pom.xml</div>
+          <div class="added">+1</div>
+          <div class="removed">-1</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:50.0%"></div>
+            <div class="ib-rem" style="width:50.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_21vexscm/upstream/.git/logs/refs/heads/oslo => dev/null}">{tmp/repo_diff_21vexscm/upstream/.git/logs/refs/heads/oslo => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-1</div>
+          <div class="delta neg">-1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:100.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.git/logs/refs/heads/oslo-ios-mcn}">{dev/null => tmp/repo_diff_21vexscm/current/.git/logs/refs/heads/oslo-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.git/logs/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_21vexscm/current/.git/logs/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_21vexscm/upstream/.git/refs/heads/oslo => dev/null}">{tmp/repo_diff_21vexscm/upstream/.git/refs/heads/oslo => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-1</div>
+          <div class="delta neg">-1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:100.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.git/refs/heads/oslo-ios-mcn}">{dev/null => tmp/repo_diff_21vexscm/current/.git/refs/heads/oslo-ios-mcn}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.git/refs/remotes/origin/HEAD}">{dev/null => tmp/repo_diff_21vexscm/current/.git/refs/remotes/origin/HEAD}</div>
+          <div class="added">+1</div>
+          <div class="removed">-0</div>
+          <div class="delta pos">+1</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:100.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream => current}/.git/index">tmp/repo_diff_21vexscm/{upstream => current}/.git/index</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.idx => current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.idx}">tmp/repo_diff_21vexscm/{upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.idx => current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.idx}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="tmp/repo_diff_21vexscm/{upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.pack => current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.pack}">tmp/repo_diff_21vexscm/{upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.pack => current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.pack}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.rev}">{dev/null => tmp/repo_diff_21vexscm/current/.git/objects/pack/pack-1accb48785fb1854f1f4e48f12f1f2a071467677.rev}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{tmp/repo_diff_21vexscm/upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.rev => dev/null}">{tmp/repo_diff_21vexscm/upstream/.git/objects/pack/pack-c01bc5a0349b60074be389d54ac24ff05d9674ff.rev => dev/null}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-api-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-api-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-client-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-client-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-client-mdsal-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-client-mdsal-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-common-mdsal-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-common-mdsal-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-nb-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-nb-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-netty-util-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-netty-util-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-server-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-server-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-server-mdsal-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-server-mdsal-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-topology-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/netconf-topology-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/restconf-nb-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/restconf-nb-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6241-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6241-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6243-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6243-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6470-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc6470-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+        <div class="file-row">
+          <div class="filepath" title="{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc8526-6.0.6.jar}">{dev/null => tmp/repo_diff_21vexscm/current/installation/sdnc/src/main/patches/rfc8526-6.0.6.jar}</div>
+          <div class="added">+0</div>
+          <div class="removed">-0</div>
+          <div class="delta zer">0</div>
+          <div class="inline-bar">
+            <div class="ib-add" style="width:0.0%"></div>
+            <div class="ib-rem" style="width:0.0%"></div>
+          </div>
+        </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">Generated by repo_diff_report.py &nbsp;·&nbsp; 2026-05-27 19:45:55</div>
+
+<script>
+function filterTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.querySelectorAll('.file-row').forEach(r => {
+    r.style.display = r.querySelector('.filepath').textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
