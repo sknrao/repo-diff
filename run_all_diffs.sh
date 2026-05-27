@@ -34,7 +34,7 @@ sep()  { echo -e "${BOLD}──────────────────�
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 CONFIG_FILE="repos.conf"
-PAT="${GITHUB_PAT:-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}"
+PAT="${GITHUB_PAT:-}"
 DEFAULT_REF="master"
 OUT_DIR="./diff_reports"
 JOBS=1
