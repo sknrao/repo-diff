@@ -34,7 +34,7 @@ sep()  { echo -e "${BOLD}──────────────────�
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 CONFIG_FILE="repos.conf"
-PAT="${GITHUB_PAT:-}"
+PAT="${GITHUB_PAT:-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}"
 DEFAULT_REF="master"
 OUT_DIR="./diff_reports"
 JOBS=1
@@ -78,7 +78,7 @@ LOG_FILE="${OUT_DIR}/run_all.log"
 log "Config  : $CONFIG_FILE"
 log "Output  : $OUT_DIR"
 log "Script  : $PY_SCRIPT"
-log "Branch  : $DEFAULT_BRANCH (default)"
+log "Branch  : $DEFAULT_REF (default)"
 log "Jobs    : $JOBS"
 [[ -n "$PAT" ]] && log "PAT     : ****${PAT: -4}" || warn "No PAT set — only public repos will work"
 sep
@@ -392,6 +392,8 @@ sep
 echo ""
 echo -e "${BOLD}  ✅ All done in ${ELAPSED}s${RESET}"
 echo ""
+ok_count=$(grep -r1 '"status": "ok"' "$JSON_DIR" | wc -l | tr -d " ")
+fail_count=$(( TOTAL - ok_count ))
 echo -e "  ${BOLD}Repos OK     :${RESET} ${GREEN}${ok_count}${RESET} / ${TOTAL}"
 [[ $fail_count -gt 0 ]] && echo -e "  ${BOLD}Repos FAILED :${RESET} ${RED}${fail_count}${RESET} / ${TOTAL}"
 echo ""
