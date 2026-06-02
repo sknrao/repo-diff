@@ -116,7 +116,9 @@ SKIP_DIRS: set[str] = {
 
 def _inject_pat(url: str, pat: str) -> str:
     p = urlparse(url)
-    return p._replace(netloc=f"{pat}@{p.netloc}").geturl()
+    # Provide a dummy username (oauth2) so git uses the PAT as the password
+    # and doesn't interactively prompt if credentials fail or are needed.
+    return p._replace(netloc=f"oauth2:{pat}@{p.netloc}").geturl()
 
 
 def _is_sha(ref: str) -> bool:
