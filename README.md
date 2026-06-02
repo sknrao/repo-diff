@@ -13,6 +13,7 @@ Built for tracking changes like an ODL IETF NETCONF version upgrade across multi
 | `repo_diff_report.py` | Core engine — clones two repos and produces a single HTML diff report |
 | `run_all_diffs.sh` | Shell orchestrator — runs the engine for every pair in a config file, then generates a combined summary |
 | `repos.conf` | Your list of repo pairs to compare |
+| `qualitative_report.py` | AI-powered qualitative report — commit log, change taxonomy, repo summary, and per-file explanations |
 
 ---
 
@@ -22,6 +23,7 @@ Built for tracking changes like an ODL IETF NETCONF version upgrade across multi
 - `git` in your `PATH`
 - No third-party Python packages needed (stdlib only)
 - GNU `parallel` *(optional, only needed for `--jobs > 1`)*
+- Anthropic API key *(optional, only needed for qualitative reports)*
 
 ---
 
@@ -135,6 +137,8 @@ source .env && ./run_all_diffs.sh
 | `-o`, `--outdir DIR` | `./diff_reports` | Directory for all output files |
 | `-s`, `--script FILE` | auto-detect | Path to `repo_diff_report.py` |
 | `-j`, `--jobs N` | `1` | Parallel jobs (requires GNU `parallel`) |
+| `-q`, `--qualitative` | off | Also generate AI qualitative reports (requires `--anthropic-key`) |
+| `-a`, `--anthropic-key KEY` | `$ANTHROPIC_API_KEY` | Anthropic API key for qualitative reports |
 | `-h`, `--help` | | Show help |
 
 ---
@@ -188,6 +192,71 @@ If cloning with `--branch` fails (e.g. branch name typo), the script retries aga
 
 ---
 
+
+## Qualitative Reports (AI-Powered)
+
+Running with `--qualitative` adds a second AI-generated report per repo explaining *what* the additions do and *why*, not just how many lines changed.
+
+### What it uses
+
+| Source | Extracted info |
+|--------|---------------|
+| `git log` | Commit messages between your fork and upstream — the developer's stated intent |
+| `git diff` (additions only) | Actual added code/config lines — what Claude reads to explain changes |
+| Claude API | Generates the narrative summaries |
+
+### What each qualitative report contains
+
+**Executive Summary** — A 4–6 sentence AI-written overview of the repo's changes: purpose, affected components, patterns (e.g. protocol version upgrades, new APIs).
+
+**Commit Taxonomy** — Commits automatically classified into categories (Feature, Bug Fix, Refactor, Chore, Docs, Test, Build) with counts shown as pills.
+
+**Commit Log** — Full list of commits unique to your fork, with author, date, SHA, and category badge. Commit bodies shown where present.
+
+**Per-File Analysis** — For every file with ≥5 added lines, a 2–4 sentence AI explanation of what the additions do, referencing specific protocols, APIs, or standards visible in the diff. Files are collapsible cards sorted by change volume.
+
+### Running qualitative reports
+
+```bash
+# Run both quantitative + qualitative for all repos
+export ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxx
+./run_all_diffs.sh --qualitative
+
+# Single repo
+python3 qualitative_report.py \
+  --current      https://github.com/your-org/ccsdk-oran \
+  --upstream     https://github.com/onap/ccsdk-oran \
+  --current-ref  my-netconf-fix \
+  --upstream-ref 2.3.0 \
+  --output       ccsdk-oran-qualitative.html
+```
+
+### Cost and speed considerations
+
+Each repo makes `1 + N` Claude API calls where N is the number of files with ≥5 added lines (capped at 20 by default). For large repos with many changed files, use `--max-files` to limit:
+
+```bash
+python3 qualitative_report.py --max-files 10 ...
+```
+
+Qualitative reports run sequentially after the quantitative diff for each repo. Parallel execution (`--jobs`) applies only to the quantitative pass.
+
+### `qualitative_report.py` options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--current URL` | *(required)* | URL of your modified/forked repo |
+| `--upstream URL` | *(required)* | URL of the original upstream repo |
+| `--pat TOKEN` | `$GITHUB_PAT` | GitHub PAT for private repos |
+| `--ref NAME` | `master` | Shared git ref for both repos |
+| `--current-ref REF` | `--ref` | Ref for your repo |
+| `--upstream-ref REF` | `--ref` | Ref for upstream repo |
+| `--anthropic-key KEY` | `$ANTHROPIC_API_KEY` | Anthropic API key |
+| `--output FILE` | `qualitative_report.html` | Output HTML path |
+| `--file-threshold N` | `5` | Min added lines to analyse a file |
+| `--max-files N` | `20` | Max files to send for AI analysis |
+| `--json-summary FILE` | none | Write a JSON summary for aggregation |
+
 ## What the Reports Show
 
 ### Per-repo report (`*_diff.html`)
@@ -231,6 +300,7 @@ diff_reports/
 ├── ccsdk-features_diff.html
 ├── ccsdk-sli-core_diff.html
 ├── ccsdk-apps_diff.html
+├── ccsdk-oran_qualitative.html  ← AI qualitative report (if --qualitative used)
 ├── run_all.log                ← full stdout/stderr from every run
 └── .summaries/                ← internal JSON files used to build summary.html
     ├── ccsdk-oran.json

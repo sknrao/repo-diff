@@ -14,6 +14,8 @@
 #   -o, --outdir   DIR     Output directory            (default: ./diff_reports)
 #   -s, --script   FILE    Path to repo_diff_report.py (default: auto-detect)
 #   -j, --jobs     N       Parallel jobs               (default: 1)
+#   -q, --qualitative      Also run qualitative (AI) reports (needs --anthropic-key)
+#   -a, --anthropic-key K  Anthropic API key (default: $ANTHROPIC_API_KEY)
 #   -h, --help             Show this help
 #
 # Config file format (repos.conf):
@@ -38,6 +40,8 @@ PAT="${GITHUB_PAT:-}"
 DEFAULT_REF="master"
 OUT_DIR="./diff_reports"
 JOBS=1
+QUALITATIVE=0
+ANTHROPIC_KEY="${ANTHROPIC_API_KEY:-}"
 
 # Auto-detect repo_diff_report.py next to this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +56,8 @@ while [[ $# -gt 0 ]]; do
     -o|--outdir)  OUT_DIR="$2";     shift 2 ;;
     -s|--script)  PY_SCRIPT="$2";   shift 2 ;;
     -j|--jobs)    JOBS="$2";        shift 2 ;;
+    -q|--qualitative)  QUALITATIVE=1;          shift ;;
+    -a|--anthropic-key) ANTHROPIC_KEY="$2";   shift 2 ;;
     -h|--help)
       grep '^#' "$0" | grep -v '^#!/' | sed 's/^# \?//'
       exit 0 ;;
@@ -78,9 +84,10 @@ LOG_FILE="${OUT_DIR}/run_all.log"
 log "Config  : $CONFIG_FILE"
 log "Output  : $OUT_DIR"
 log "Script  : $PY_SCRIPT"
-log "Branch  : $DEFAULT_REF (default)"
+log "Ref     : $DEFAULT_REF (default)"
 log "Jobs    : $JOBS"
 [[ -n "$PAT" ]] && log "PAT     : ****${PAT: -4}" || warn "No PAT set — only public repos will work"
+[[ $QUALITATIVE -eq 1 ]] && log "Mode    : quantitative + qualitative (AI)" || log "Mode    : quantitative only"
 sep
 
 # ── parse config into arrays ──────────────────────────────────────────────────
@@ -154,6 +161,19 @@ run_one() {
         --json-summary "$json_file" \
         >> "$LOG_FILE" 2>&1; then
     ok "$repo_name  →  $(basename "$report_file")"
+  if [[ $QUALITATIVE -eq 1 ]]; then
+    local qual_file="${OUT_DIR}/${repo_name}_qualitative.html"
+    local qual_args=(--current "$current" --upstream "$upstream" \
+                     --current-ref "$cur_ref" --upstream-ref "$up_ref" \
+                     --output "$qual_file")
+    [[ -n "$PAT" ]]           && qual_args+=(--pat "$PAT")
+    [[ -n "$ANTHROPIC_KEY" ]] && qual_args+=(--anthropic-key "$ANTHROPIC_KEY")
+    if python3 "${SCRIPT_DIR}/qualitative_report.py" "${qual_args[@]}" >> "$LOG_FILE" 2>&1; then
+      ok "$repo_name  qualitative →  $(basename "$qual_file")"
+    else
+      warn "$repo_name  qualitative FAILED (see $LOG_FILE)"
+    fi
+  fi
     echo "OK" > "${JSON_DIR}/${repo_name}.status"
   else
     err "$repo_name  FAILED (see $LOG_FILE)"
@@ -180,7 +200,7 @@ PYSTUB
 }
 
 export -f run_one
-export CURRENT_URLS UPSTREAM_URLS CURRENT_REFS UPSTREAM_REFS REPO_NAMES TOTAL
+export CURRENT_URLS UPSTREAM_URLS CURRENT_REFS UPSTREAM_REFS REPO_NAMES TOTAL QUALITATIVE ANTHROPIC_KEY
 export OUT_DIR JSON_DIR LOG_FILE PAT PY_SCRIPT
 
 # ── run (sequential or parallel) ─────────────────────────────────────────────
@@ -392,7 +412,7 @@ sep
 echo ""
 echo -e "${BOLD}  ✅ All done in ${ELAPSED}s${RESET}"
 echo ""
-ok_count=$(grep -r1 '"status": "ok"' "$JSON_DIR" | wc -l | tr -d " ")
+ok_count=$(grep -rl '"status": "ok"' "$JSON_DIR" 2>/dev/null | wc -l | tr -d " ")
 fail_count=$(( TOTAL - ok_count ))
 echo -e "  ${BOLD}Repos OK     :${RESET} ${GREEN}${ok_count}${RESET} / ${TOTAL}"
 [[ $fail_count -gt 0 ]] && echo -e "  ${BOLD}Repos FAILED :${RESET} ${RED}${fail_count}${RESET} / ${TOTAL}"
